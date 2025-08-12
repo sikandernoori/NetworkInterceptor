@@ -12,6 +12,11 @@ class NetworkRedirectUrlProtocol: URLProtocol {
 
     var session: URLSession?
     var sessionTask: URLSessionTask?
+    private static var sharedSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.protocolClasses = nil
+        return URLSession(configuration: config)
+    }()
     
     open override class func canInit(with request: URLRequest) -> Bool {
         if let httpHeaders = request.allHTTPHeaderFields, let refiredValue = httpHeaders["Redirected"], refiredValue == "true" {
@@ -29,17 +34,14 @@ class NetworkRedirectUrlProtocol: URLProtocol {
     open override func startLoading() {
         
         guard var redirectedRequest = NetworkInterceptor.shared.redirectedRequest(urlRequest: self.request) else {
-            return
+            return 
         }
         #if DEBUG
             NSLog("Redirected Request CURL => \(redirectedRequest.cURL)")
         #endif
         redirectedRequest.addValue("true", forHTTPHeaderField: "Redirected")
         
-        let config = URLSessionConfiguration.default
-        config.protocolClasses = [type(of: self)]
-        
-        session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
+        session = NetworkRedirectUrlProtocol.sharedSession
         sessionTask = session?.dataTask(with: redirectedRequest, completionHandler: { [weak self] (data, response, error) in
             guard let strongSelf = self else { return }
             
